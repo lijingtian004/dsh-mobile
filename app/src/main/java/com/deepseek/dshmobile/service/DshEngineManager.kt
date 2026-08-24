@@ -5,17 +5,14 @@ import android.util.Log
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.withContext
 
-class DshEngineManager private constructor(private val context: Context) {
+class DshEngineManager(private val context: Context) {
 
     companion object {
         private const val TAG = "DshEngineManager"
         private const val PORT = 3080
         private const val HOST = "127.0.0.1"
-
-        val instance: DshEngineManager by lazy {
-            DshEngineManager(ApplicationProvider.context)
-        }
 
         var isRunning: Boolean = false
             private set
@@ -25,7 +22,7 @@ class DshEngineManager private constructor(private val context: Context) {
 
     /**
      * 初始化并启动本地 dsh 引擎
-     * 检查 assets 中的 Node.js 和 dsh CLI 是否可用，否则从 assets 解压
+     * 检查 files 目录中的 Node.js 和 dsh CLI 是否可用，否则从 assets 解压
      */
     suspend fun initialize(context: Context): Boolean {
         if (isRunning) return true
@@ -63,39 +60,36 @@ class DshEngineManager private constructor(private val context: Context) {
     }
 
     /**
-     * 从 assets 解压引擎文件
-     * 支持两种格式：压缩包或直接文件
+     * 从 assets 递归解压引擎文件（支持子目录）
      */
     private fun extractFromAssets(targetDir: File): Boolean {
         return try {
-            targetDir.mkdirs()
-
-            // 尝试从 assets/engine/ 解压
-            context.assets.list("engine")?.forEach { fileName ->
-                val targetFile = File(targetDir, fileName)
-                if (fileName.endsWith(".gz") || fileName.endsWith(".tar")) {
-                    // 处理压缩包（简化：直接复制）
-                    context.assets.open("engine/$fileName").use { input ->
-                        targetFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                } else {
-                    // 直接复制二进制文件
-                    context.assets.open("engine/$fileName").use { input ->
-                        targetFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    // 设置可执行权限
-                    targetFile.setExecutable(true)
-                }
-            }
+            copyAssetDirectory("engine", targetDir)
             Log.i(TAG, "Engine extracted successfully")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract engine", e)
             false
+        }
+    }
+
+    private fun copyAssetDirectory(assetPath: String, targetDir: File) {
+        targetDir.mkdirs()
+        val children = context.assets.list(assetPath) ?: return
+        for (name in children) {
+            val childAssetPath = "$assetPath/$name"
+            val childFile = File(targetDir, name)
+            val grandChildren = context.assets.list(childAssetPath)
+            if (grandChildren != null && grandChildren.isNotEmpty()) {
+                copyAssetDirectory(childAssetPath, childFile)
+            } else {
+                context.assets.open(childAssetPath).use { input ->
+                    childFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                childFile.setExecutable(true, false)
+            }
         }
     }
 
@@ -163,7 +157,8 @@ class DshEngineManager private constructor(private val context: Context) {
                 conn.connectTimeout = 30_000
                 conn.readTimeout = 60_000
 
-                val body = """{"content":${""$content""},${"sessionId":"$sessionId"}"""
+                val escapedContent = content.replace("\\", "\\\\").replace("\"", "\\\"")
+                val body = """{"content":"$escapedContent","sessionId":"$sessionId"}"""
                 conn.outputStream.use { it.write(body.toByteArray()) }
 
                 val responseCode = conn.responseCode
@@ -178,9 +173,4 @@ class DshEngineManager private constructor(private val context: Context) {
             }
         }
     }
-}
-
-// Application context provider for lazy initialization
-private object ApplicationProvider {
-    var context: Context? = null
 }

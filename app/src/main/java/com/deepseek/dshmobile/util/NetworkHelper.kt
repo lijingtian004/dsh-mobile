@@ -5,6 +5,8 @@ import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okio.ByteString
 import java.io.IOException
@@ -39,10 +41,11 @@ class NetworkHelper(private val context: Context) {
     }
 
     fun postJson(url: String, body: String, callback: Callback) {
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val requestBody = body.toRequestBody(mediaType)
         val request = Request.Builder()
             .url(url)
-            .addHeader("Content-Type", "application/json")
-            .post(okhttp3.RequestBody.create(body.toByteArray(), okhttp3.MediaType.parse("application/json")))
+            .post(requestBody)
             .build()
         client.newCall(request).enqueue(callback)
     }

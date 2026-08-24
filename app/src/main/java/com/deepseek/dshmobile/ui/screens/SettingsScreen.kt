@@ -156,6 +156,7 @@ fun EngineStatusCard(isRunning: Boolean) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun modelSelector(models: List<String>, selected: String, onSelect: (String) -> Unit) {
     ExposedDropdownMenuBox(
         expanded = false,
@@ -176,6 +177,7 @@ fun modelSelector(models: List<String>, selected: String, onSelect: (String) -> 
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun SettingsRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,

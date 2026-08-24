@@ -1,6 +1,16 @@
 package com.deepseek.dshmobile.database
 
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Database
+import androidx.room.Delete
+import androidx.room.Entity
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.PrimaryKey
+import androidx.room.Query
+import androidx.room.RoomDatabase
+import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "sessions")
 data class SessionEntity(
@@ -8,20 +18,21 @@ data class SessionEntity(
     var name: String,
     val createdAt: Long,
     val updatedAt: Long
-) {
-    data class Message(
-        @PrimaryKey val messageId: String,
-        val sessionId: String,
-        val role: String,
-        val content: String,
-        val timestamp: Long
-    )
-}
+)
+
+@Entity(tableName = "messages")
+data class Message(
+    @PrimaryKey val messageId: String,
+    val sessionId: String,
+    val role: String,
+    val content: String,
+    val timestamp: Long
+)
 
 @Dao
 interface SessionDao {
     @Query("SELECT * FROM sessions ORDER BY updatedAt DESC")
-    fun getAllSessions(): kotlinx.coroutines.flow.Flow<List<SessionEntity>>
+    fun getAllSessions(): Flow<List<SessionEntity>>
 
     @Query("SELECT * FROM sessions WHERE sessionId = :sessionId")
     suspend fun getSession(sessionId: String): SessionEntity?
@@ -42,13 +53,13 @@ interface SessionDao {
 @Dao
 interface MessageDao {
     @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
-    fun getMessages(sessionId: String): kotlinx.coroutines.flow.Flow<List<SessionEntity.Message>>
+    fun getMessages(sessionId: String): Flow<List<Message>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMessage(message: SessionEntity.Message)
+    suspend fun insertMessage(message: Message)
 }
 
-@RoomDatabase(databaseVersion = 1)
+@Database(entities = [SessionEntity::class, Message::class], version = 1)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun messageDao(): MessageDao

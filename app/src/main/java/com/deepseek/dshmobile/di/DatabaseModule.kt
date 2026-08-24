@@ -1,6 +1,7 @@
 package com.deepseek.dshmobile.di
 
 import android.content.Context
+import androidx.room.Room
 import com.deepseek.dshmobile.database.AppDatabase
 import dagger.Module
 import dagger.Provides

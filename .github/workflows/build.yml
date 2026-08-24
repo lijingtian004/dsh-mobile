@@ -1,0 +1,77 @@
+name: Build Debug APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare engine assets
+        run: |
+          set -e
+          mkdir -p app/src/main/assets/engine
+
+          # 1) Node.js ARM64 Android binary from nodejs-mobile
+          curl -sL --retry 3 -o /tmp/nm.zip \
+            https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip
+          mkdir -p /tmp/nm && cd /tmp/nm && unzip -qo ../nm.zip
+          NODE_BIN=$(find /tmp/nm -type f -name node | head -n1)
+          echo "node binary: $NODE_BIN"
+          file "$NODE_BIN"
+          cd "$GITHUB_WORKSPACE"
+          cp "$NODE_BIN" app/src/main/assets/engine/node
+          chmod +x app/src/main/assets/engine/node
+
+          # shared libraries (if any)
+          mkdir -p app/src/main/assets/engine/lib
+          find /tmp/nm -type f -name "*.so" -exec cp {} app/src/main/assets/engine/lib/ \; || true
+
+          # 2) dsh CLI bundle via npm
+          mkdir -p app/src/main/assets/engine/bundle
+          cd app/src/main/assets/engine/bundle
+          npm install @deepseek-ai/dsh --ignore-scripts --omit=dev --no-audit --no-fund
+          cd "$GITHUB_WORKSPACE"
+
+          # 3) dsh launcher script
+          cat > app/src/main/assets/engine/dsh <<'EOS'
+          #!/system/bin/sh
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          export LD_LIBRARY_PATH="$DIR/lib:$LD_LIBRARY_PATH"
+          export HOME="$DIR/home"
+          export TMPDIR="$HOME/tmp"
+          mkdir -p "$HOME/tmp"
+          exec "$DIR/node" "$DIR/bundle/node_modules/@deepseek-ai/dsh/lib/bin.js" "$@"
+          EOS
+          chmod +x app/src/main/assets/engine/dsh
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build Debug APK
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-mobile-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

@@ -1,11 +1,18 @@
 package com.deepseek.dshmobile.ui.nav
 
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.deepseek.dshmobile.ui.screens.ChatScreen
 import com.deepseek.dshmobile.ui.screens.SettingsScreen
 import com.deepseek.dshmobile.ui.screens.SessionListScreen
-import kotlinx.coroutines.flow.StateFlow
+import com.deepseek.dshmobile.ui.viewmodel.MainViewModel
 
 sealed class Screen(val route: String) {
     object Sessions : Screen("sessions")
@@ -20,9 +27,6 @@ fun NavigationHost(
     viewModel: MainViewModel = viewModel()
 ) {
     val navController = rememberNavController()
-    val currentRoute = navController.currentBackStackEntryFlow
-        .map { it.destination.route ?: "sessions" }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "sessions")
 
     NavHost(
         navController = navController,
@@ -53,10 +57,10 @@ fun NavigationHost(
         }
         composable(
             route = "chat/{sessionId}",
-            arguments = listOf(navArgument("sessionId") { defaultValue = "" })
+            arguments = listOf(navArgument("sessionId") { type = NavType.StringType; defaultValue = "" })
         ) { backStackEntry ->
             val sessionId = backStackEntry.arguments?.getString("sessionId") ?: ""
-            val messages by viewModel.getMessages(sessionId).collectAsState(initial = emptyList())
+            val messages by viewModel.getMessages(sessionId).collectAsState()
             val isLoading by viewModel.isLoading.collectAsState()
 
             ChatScreen(

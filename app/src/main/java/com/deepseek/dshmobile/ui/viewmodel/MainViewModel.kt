@@ -30,7 +30,7 @@ class MainViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    private val messageStates = MutableMap<String, MutableStateFlow<ChatUIState>>()
+    private val messageStates = mutableMapOf<String, MutableStateFlow<ChatUIState>>()
 
     fun createSession(name: String) {
         viewModelScope.launch {

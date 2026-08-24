@@ -1,6 +1,7 @@
 package com.deepseek.dshmobile.repository
 
 import com.deepseek.dshmobile.database.AppDatabase
+import com.deepseek.dshmobile.database.Message
 import com.deepseek.dshmobile.database.SessionEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -37,7 +38,7 @@ class SessionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun saveMessage(sessionId: String, role: String, content: String) {
-        val message = SessionEntity.Message(
+        val message = Message(
             messageId = java.util.UUID.randomUUID().toString(),
             sessionId = sessionId,
             role = role,
@@ -52,6 +53,6 @@ class SessionRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun getMessages(sessionId: String): Flow<List<SessionEntity.Message>> =
+    override fun getMessages(sessionId: String): Flow<List<Message>> =
         database.messageDao().getMessages(sessionId)
 }

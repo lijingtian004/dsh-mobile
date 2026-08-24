@@ -1,5 +1,6 @@
 package com.deepseek.dshmobile.repository
 
+import com.deepseek.dshmobile.database.Message
 import com.deepseek.dshmobile.database.SessionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -10,5 +11,5 @@ interface SessionRepository {
     suspend fun updateSession(sessionId: String, name: String)
     suspend fun deleteSession(sessionId: String)
     suspend fun saveMessage(sessionId: String, role: String, content: String)
-    fun getMessages(sessionId: String): Flow<List<SessionEntity.Message>>
+    fun getMessages(sessionId: String): Flow<List<Message>>
 }
