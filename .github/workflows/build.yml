@@ -33,7 +33,7 @@ jobs:
             https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-aarch64/Packages
           FILE_PATH=$(grep -A15 '^Package: nodejs$' /tmp/Packages | grep '^Filename:' | tail -n1 | cut -d' ' -f2)
           echo "termux nodejs package: $FILE_PATH"
-          curl -sL --retry 3 -o /tmp/node.deb "https://packages.termux.dev/$FILE_PATH"
+          curl -sL --retry 3 -o /tmp/node.deb "https://packages.termux.dev/apt/termux-main/$FILE_PATH"
           mkdir -p /tmp/tn && cd /tmp/tn
           ar x /tmp/node.deb
           if [ -f data.tar.xz ]; then tar -xf data.tar.xz;
