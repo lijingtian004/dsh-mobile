@@ -28,20 +28,41 @@ jobs:
           set -e
           mkdir -p app/src/main/assets/engine
 
-          # 1) Node.js ARM64 Android binary from nodejs-mobile
-          curl -sL --retry 3 -o /tmp/nm.zip \
-            https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip
-          mkdir -p /tmp/nm && cd /tmp/nm && unzip -qo ../nm.zip
-          NODE_BIN=$(find /tmp/nm -type f -name node | head -n1)
-          echo "node binary: $NODE_BIN"
-          file "$NODE_BIN"
+          # 1) Native Android ARM64 Node.js from the official Termux repo
+          curl -s -o /tmp/Packages \
+            https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-aarch64/Packages
+          FILE_PATH=$(grep -A15 '^Package: nodejs$' /tmp/Packages | grep '^Filename:' | tail -n1 | cut -d' ' -f2)
+          echo "termux nodejs package: $FILE_PATH"
+          curl -sL --retry 3 -o /tmp/node.deb "https://packages.termux.dev/$FILE_PATH"
+          mkdir -p /tmp/tn && cd /tmp/tn
+          ar x /tmp/node.deb
+          if [ -f data.tar.xz ]; then tar -xf data.tar.xz;
+          elif [ -f data.tar.zst ]; then tar --zstd -xf data.tar.zst;
+          elif [ -f data.tar.gz ]; then tar -xf data.tar.gz; fi
+          USR=/tmp/tn/data/data/com.termux/files/usr
           cd "$GITHUB_WORKSPACE"
-          cp "$NODE_BIN" app/src/main/assets/engine/node
+          cp "$USR/bin/node" app/src/main/assets/engine/node
           chmod +x app/src/main/assets/engine/node
 
-          # shared libraries (if any)
-          mkdir -p app/src/main/assets/engine/lib
-          find /tmp/nm -type f -name "*.so" -exec cp {} app/src/main/assets/engine/lib/ \; || true
+          # shared libraries (two passes to catch transitive deps)
+          LIBDIR=app/src/main/assets/engine/lib
+          mkdir -p "$LIBDIR"
+          copy_needed() {
+            local bin="$1"
+            for lib in $(readelf -d "$bin" | grep NEEDED | sed 's/.*\[\(.*\)\].*/\1/'); do
+              if [ ! -f "$LIBDIR/$lib" ]; then
+                src=$(find "$USR/lib" -name "$lib" | head -n1)
+                if [ -n "$src" ]; then
+                  cp "$src" "$LIBDIR/$lib"
+                  echo "$LIBDIR/$lib" >> /tmp/copied.txt
+                fi
+              fi
+            done
+          }
+          touch /tmp/copied.txt
+          copy_needed "$USR/bin/node"
+          while read -r f; do copy_needed "$f"; done < /tmp/copied.txt
+          ls -la "$LIBDIR"
 
           # 2) dsh CLI bundle via npm
           mkdir -p app/src/main/assets/engine/bundle
