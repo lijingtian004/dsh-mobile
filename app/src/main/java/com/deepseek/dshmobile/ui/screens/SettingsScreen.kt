@@ -74,11 +74,22 @@ fun SettingsScreen(
         ) {
             // 引擎状态
             item {
-                EngineStatusCard(
-                    isRunning = engineRunning,
-                    onStart = { startEngine() },
-                    onStop = { stopEngine() }
-                )
+                val engineStatus by DshEngineManager.status.collectAsState()
+                Column {
+                    EngineStatusCard(
+                        isRunning = engineRunning,
+                        onStart = { startEngine() },
+                        onStop = { stopEngine() }
+                    )
+                    if (engineStatus != "引擎未启动") {
+                        Text(
+                            engineStatus,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(top = 4.dp, start = 16.dp)
+                        )
+                    }
+                }
             }
 
             // 自定义 API 接入
