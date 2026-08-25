@@ -11,7 +11,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.deepseek.dshmobile.R
-import com.deepseek.dshmobile.ui.MainActivity
+import com.deepseek.dshmobile.MainActivity
 import kotlinx.coroutines.*
 import java.io.File
 import java.net.HttpURLConnection
