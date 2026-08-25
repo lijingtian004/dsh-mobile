@@ -33,33 +33,57 @@ jobs:
           curl -s -o /tmp/Packages \
             https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-aarch64/Packages
 
-          mkdir -p /tmp/tn && cd /tmp/tn
-          declare -A DONE
-          queue=(nodejs)
-          while [ ${#queue[@]} -gt 0 ]; do
-            p="${queue[0]}"; queue=("${queue[@]:1}")
-            [ -z "$p" ] && continue
-            [ -n "${DONE[$p]}" ] && continue
-            DONE[$p]=1
-            STANZA=$(awk -v RS='' -v P="$p" '{
-                n = split($0, lines, "\n")
-                for (i = 1; i <= n; i++)
-                  if (lines[i] == "Package: " P) { print; exit }
-              }' /tmp/Packages | tail -n1)
-            [ -z "$STANZA" ] && { echo "skip unknown package: $p"; continue; }
-            FN=$(echo "$STANZA" | grep -m1 '^Filename:' | cut -d' ' -f2)
-            DEPS=$(echo "$STANZA" | grep -m1 '^Depends:' | sed 's/^Depends: //' | tr ',' '\n' | sed 's/([^)]*)//g' | awk '{print $1}' | sed 's/:.*$//' | grep -v '^$' || true)
-            for d in $DEPS; do [ -z "${DONE[$d]}" ] && queue+=("$d"); done
+          # resolve nodejs + transitive deps with python (mawk paragraph mode is unreliable)
+          python3 - <<'PYEOF' > /tmp/dl_list.txt
+          import re
+          content = open('/tmp/Packages').read()
+          stanzas = {}
+          for st in content.split('\n\n'):
+              m = re.search(r'^Package: (.+)$', st, re.M)
+              if m:
+                  stanzas[m.group(1)] = st
+          def field(st, f):
+              m = re.search(r'^%s: (.+)$' % f, st, re.M)
+              return m.group(1) if m else ''
+          def deps(st):
+              raw = field(st, 'Depends')
+              out = []
+              for d in raw.split(','):
+                  d = re.sub(r'\s*\(.*\)', '', d).strip()
+                  d = d.split(':')[0].strip()
+                  if d:
+                      out.append(d)
+              return out
+          todo = ['nodejs']
+          seen = set()
+          order = []
+          while todo:
+              p = todo.pop(0)
+              if not p or p in seen or p not in stanzas:
+                  continue
+              seen.add(p)
+              st = stanzas[p]
+              fn = field(st, 'Filename')
+              if fn:
+                  order.append(fn)
+              todo.extend(deps(st))
+          print('\n'.join(order))
+          PYEOF
+          wc -l /tmp/dl_list.txt
+          cd /tmp/tn
+          while IFS= read -r FN; do
+            [ -z "$FN" ] && continue
             echo "downloading: $FN"
-            curl -sL --retry 3 -o "pkg.deb" "https://packages.termux.dev/apt/termux-main/$FN"
-            mkdir -p "x_$p" && cd "x_$p"
+            curl -sL --retry 3 -o pkg.deb "https://packages.termux.dev/apt/termux-main/$FN"
+            D="x_$(echo "$FN" | tr '/' '_')"
+            mkdir -p "$D" && cd "$D"
             ar x ../pkg.deb
             if [ -f data.tar.xz ]; then tar -xf data.tar.xz;
             elif [ -f data.tar.zst ]; then tar --zstd -xf data.tar.zst;
             elif [ -f data.tar.gz ]; then tar -xf data.tar.gz; fi
             rm -f ../pkg.deb
             cd ..
-          done
+          done < /tmp/dl_list.txt
 
           NODE_BIN=$(find /tmp/tn -path '*files/usr/bin/node' -type f | head -n1)
           echo "node binary: $NODE_BIN"
