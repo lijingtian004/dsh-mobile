@@ -63,6 +63,12 @@ android {
         }
     }
 
+    androidResources {
+        // 默认会排除所有以 . 开头的文件（如 pi-ai 的 .manifest.json），必须保留
+        ignoreAssetsPattern =
+            "!.svn:!.git:!.gitignore:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~"
+    }
+
     sourceSets {
         getByName("main") {
             assets.srcDirs("src/main/assets")
