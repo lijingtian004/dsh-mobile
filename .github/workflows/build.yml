@@ -31,37 +31,68 @@ jobs:
           # 1) Native Android ARM64 Node.js from the official Termux repo
           curl -s -o /tmp/Packages \
             https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-aarch64/Packages
-          FILE_PATH=$(grep -A15 '^Package: nodejs$' /tmp/Packages | grep '^Filename:' | tail -n1 | cut -d' ' -f2)
-          echo "termux nodejs package: $FILE_PATH"
-          curl -sL --retry 3 -o /tmp/node.deb "https://packages.termux.dev/apt/termux-main/$FILE_PATH"
+
           mkdir -p /tmp/tn && cd /tmp/tn
-          ar x /tmp/node.deb
-          if [ -f data.tar.xz ]; then tar -xf data.tar.xz;
-          elif [ -f data.tar.zst ]; then tar --zstd -xf data.tar.zst;
-          elif [ -f data.tar.gz ]; then tar -xf data.tar.gz; fi
-          USR=/tmp/tn/data/data/com.termux/files/usr
+          declare -A DONE
+          queue=(nodejs)
+          while [ ${#queue[@]} -gt 0 ]; do
+            p="${queue[0]}"; queue=("${queue[@]:1}")
+            [ -z "$p" ] && continue
+            [ -n "${DONE[$p]}" ] && continue
+            DONE[$p]=1
+            STANZA=$(awk -v RS='' -v P="$p" '{
+                n = split($0, lines, "\n")
+                for (i = 1; i <= n; i++)
+                  if (lines[i] == "Package: " P) { print; exit }
+              }' /tmp/Packages | tail -n1)
+            [ -z "$STANZA" ] && { echo "skip unknown package: $p"; continue; }
+            FN=$(echo "$STANZA" | grep -m1 '^Filename:' | cut -d' ' -f2)
+            DEPS=$(echo "$STANZA" | grep -m1 '^Depends:' | sed 's/^Depends: //' | tr ',' '\n' | sed 's/([^)]*)//g' | awk '{print $1}' | sed 's/:.*$//' | grep -v '^$')
+            for d in $DEPS; do [ -z "${DONE[$d]}" ] && queue+=("$d"); done
+            echo "downloading: $FN"
+            curl -sL --retry 3 -o "pkg.deb" "https://packages.termux.dev/apt/termux-main/$FN"
+            mkdir -p "x_$p" && cd "x_$p"
+            ar x ../pkg.deb
+            if [ -f data.tar.xz ]; then tar -xf data.tar.xz;
+            elif [ -f data.tar.zst ]; then tar --zstd -xf data.tar.zst;
+            elif [ -f data.tar.gz ]; then tar -xf data.tar.gz; fi
+            rm -f ../pkg.deb
+            cd ..
+          done
+
+          NODE_BIN=$(find /tmp/tn -path '*files/usr/bin/node' -type f | head -n1)
+          echo "node binary: $NODE_BIN"
           cd "$GITHUB_WORKSPACE"
-          cp "$USR/bin/node" app/src/main/assets/engine/node
+          cp "$NODE_BIN" app/src/main/assets/engine/node
           chmod +x app/src/main/assets/engine/node
 
-          # shared libraries (two passes to catch transitive deps)
+          # shared libraries: walk NEEDED entries across ALL extracted packages
           LIBDIR=app/src/main/assets/engine/lib
           mkdir -p "$LIBDIR"
+          find /tmp/tn -type d -name lib > /tmp/libdirs.txt
           copy_needed() {
             local bin="$1"
-            for lib in $(readelf -d "$bin" | grep NEEDED | sed 's/.*\[\(.*\)\].*/\1/'); do
+            for lib in $(readelf -d "$bin" 2>/dev/null | grep NEEDED | sed 's/.*\[\(.*\)\].*/\1/'); do
               if [ ! -f "$LIBDIR/$lib" ]; then
-                src=$(find "$USR/lib" -name "$lib" | head -n1)
+                src=$(cat /tmp/libdirs.txt | xargs -I{} find {} -name "$lib" 2>/dev/null | head -n1)
                 if [ -n "$src" ]; then
                   cp "$src" "$LIBDIR/$lib"
-                  echo "$LIBDIR/$lib" >> /tmp/copied.txt
+                  echo "$src" >> /tmp/copied.txt
+                else
+                  echo "WARN: $lib not found"
                 fi
               fi
             done
           }
           touch /tmp/copied.txt
-          copy_needed "$USR/bin/node"
-          while read -r f; do copy_needed "$f"; done < /tmp/copied.txt
+          copy_needed app/src/main/assets/engine/node
+          # fixed-point: rescan until no new libs appear
+          for round in 1 2 3 4 5; do
+            before=$(ls "$LIBDIR" | wc -l)
+            for f in $(find "$LIBDIR" -type f); do copy_needed "$f"; done
+            after=$(ls "$LIBDIR" | wc -l)
+            [ "$before" = "$after" ] && break
+          done
           ls -la "$LIBDIR"
 
           # 2) dsh CLI bundle via npm
