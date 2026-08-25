@@ -12,7 +12,7 @@ import dagger.Component
 import javax.inject.Singleton
 
 @Singleton
-@Component
+@Component(modules = [DatabaseModule::class, RepositoryModule::class, ServiceModule::class])
 interface AppComponent {
     fun sessionRepository(): SessionRepository
     fun dshEngineManager(): DshEngineManager
