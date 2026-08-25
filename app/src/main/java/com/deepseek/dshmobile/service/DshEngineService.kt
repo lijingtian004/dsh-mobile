@@ -30,7 +30,7 @@ class DshEngineService : Service() {
         const val ACTION_STOP = "com.deepseek.dshmobile.ACTION_STOP"
         const val ACTION_STATUS = "com.deepseek.dshmobile.ACTION_STATUS"
 
-        fun isRunning(): Boolean = DshEngineManager.instance.isRunning
+        fun isRunning(): Boolean = DshEngineManager.isRunning
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -123,7 +123,7 @@ class DshEngineService : Service() {
 
     private fun sendStatusBroadcast() {
         val intent = Intent("com.deepseek.dshmobile.ENGINE_STATUS")
-        intent.putExtra("running", DshEngineManager.instance.isRunning)
+        intent.putExtra("running", DshEngineManager.isRunning)
         sendBroadcast(intent)
     }
 
