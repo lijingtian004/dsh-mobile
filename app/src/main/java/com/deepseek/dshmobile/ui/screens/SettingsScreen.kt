@@ -1,5 +1,6 @@
 package com.deepseek.dshmobile.ui.screens
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -140,7 +141,7 @@ fun EngineStatusCard(isRunning: Boolean) {
                         MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
                 )
             }
-            FilledButton(
+            Button(
                 onClick = { /* 启动/停止引擎 */ },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isRunning)

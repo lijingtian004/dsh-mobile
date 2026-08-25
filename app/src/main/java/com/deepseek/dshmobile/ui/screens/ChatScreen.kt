@@ -72,6 +72,7 @@ fun ChatScreen(
                 },
                 enabled = !isLoading
             )
+
         },
         modifier = modifier
     ) { padding ->
@@ -135,8 +136,7 @@ fun ChatInputBar(
             )
             Spacer(modifier = Modifier.width(8.dp))
             FloatingActionButton(
-                onClick = onSend,
-                enabled = enabled && text.trim().isNotEmpty(),
+                onClick = { if (enabled && text.trim().isNotEmpty()) onSend() },
                 modifier = Modifier.size(48.dp),
                 containerColor = if (enabled && text.trim().isNotEmpty())
                     MaterialTheme.colorScheme.primary

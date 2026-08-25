@@ -5,6 +5,7 @@ import android.util.Log
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class DshEngineManager(private val context: Context) {
@@ -13,6 +14,17 @@ class DshEngineManager(private val context: Context) {
         private const val TAG = "DshEngineManager"
         private const val PORT = 3080
         private const val HOST = "127.0.0.1"
+
+        @Volatile
+        private var appContext: Context? = null
+
+        val instance: DshEngineManager by lazy {
+            DshEngineManager(appContext!!)
+        }
+
+        fun init(context: Context) {
+            appContext = context.applicationContext
+        }
 
         var isRunning: Boolean = false
             private set
@@ -48,7 +60,7 @@ class DshEngineManager(private val context: Context) {
                 .start()
 
             process = pb
-            Log.i(TAG, "Engine process started: PID=${pb.pid()}")
+            Log.i(TAG, "Engine process started")
 
             // 等待服务就绪
             waitForReady()
@@ -124,7 +136,7 @@ class DshEngineManager(private val context: Context) {
     fun stop() {
         process?.let {
             it.destroy()
-            Log.i(TAG, "Engine process destroyed: PID=${it.pid()}")
+            Log.i(TAG, "Engine process destroyed")
         }
         process = null
         isRunning = false
@@ -147,7 +159,7 @@ class DshEngineManager(private val context: Context) {
      * 发送消息到引擎
      */
     suspend fun sendMessage(content: String, sessionId: String? = null): String {
-        return withContext(java.util.concurrent.Executors.newSingleThreadExecutor()) {
+        return withContext(Dispatchers.IO) {
             try {
                 val url = URL("http://$HOST:$PORT/api/chat")
                 val conn = url.openConnection() as HttpURLConnection
