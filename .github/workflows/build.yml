@@ -70,7 +70,7 @@ jobs:
           print('\n'.join(order))
           PYEOF
           wc -l /tmp/dl_list.txt
-          cd /tmp/tn
+          mkdir -p /tmp/tn && cd /tmp/tn
           while IFS= read -r FN; do
             [ -z "$FN" ] && continue
             echo "downloading: $FN"
