@@ -1,5 +1,6 @@
 package com.deepseek.dshmobile.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,8 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.deepseek.dshmobile.service.DshEngineManager
+import com.deepseek.dshmobile.service.DshEngineService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -19,13 +22,29 @@ fun SettingsScreen(
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var engineRunning by remember { mutableStateOf(DshEngineManager.isRunning) }
     var apiKey by remember { mutableStateOf("") }
     var defaultModel by remember { mutableStateOf("deepseek-chat") }
     val models = listOf("deepseek-chat", "deepseek-coder", "deepseek-reasoner")
 
     LaunchedEffect(Unit) {
-        // 定期检查引擎状态
+        while (true) {
+            engineRunning = DshEngineManager.isRunning
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    fun startEngine() {
+        val intent = Intent(context, DshEngineService::class.java).setAction(DshEngineService.ACTION_START)
+        context.startForegroundService(intent)
+        engineRunning = true
+    }
+
+    fun stopEngine() {
+        val intent = Intent(context, DshEngineService::class.java).setAction(DshEngineService.ACTION_STOP)
+        context.startService(intent)
+        engineRunning = false
     }
 
     Scaffold(
@@ -50,7 +69,11 @@ fun SettingsScreen(
         ) {
             // 引擎状态
             item {
-                EngineStatusCard(isRunning = engineRunning)
+                EngineStatusCard(
+                    isRunning = engineRunning,
+                    onStart = { startEngine() },
+                    onStop = { stopEngine() }
+                )
             }
 
             // API Key
@@ -106,7 +129,7 @@ fun SettingsScreen(
 }
 
 @Composable
-fun EngineStatusCard(isRunning: Boolean) {
+fun EngineStatusCard(isRunning: Boolean, onStart: () -> Unit = {}, onStop: () -> Unit = {}) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -142,7 +165,7 @@ fun EngineStatusCard(isRunning: Boolean) {
                 )
             }
             Button(
-                onClick = { /* 启动/停止引擎 */ },
+                onClick = { if (isRunning) onStop() else onStart() },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isRunning)
                         MaterialTheme.colorScheme.error
