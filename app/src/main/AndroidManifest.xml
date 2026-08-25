@@ -32,6 +32,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.EngineWebActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
         <service
             android:name=".service.DshEngineService"
             android:exported="false"

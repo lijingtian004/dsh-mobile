@@ -15,6 +15,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.deepseek.dshmobile.service.DshEngineManager
 import com.deepseek.dshmobile.service.DshEngineService
+import com.deepseek.dshmobile.ui.EngineWebActivity
+import com.deepseek.dshmobile.util.EngineSettings
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,6 +26,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var engineRunning by remember { mutableStateOf(DshEngineManager.isRunning) }
     var apiKey by remember { mutableStateOf("") }
     var defaultModel by remember { mutableStateOf("deepseek-chat") }
@@ -76,16 +80,95 @@ fun SettingsScreen(
                 )
             }
 
-            // API Key
+            // 自定义 API 接入
             item {
-                OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    label = { Text("API Key") },
-                    placeholder = { Text("请输入您的 API Key") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = MaterialTheme.typography.bodyMedium
+                var baseUrl by remember { mutableStateOf("") }
+                var modelId by remember { mutableStateOf("") }
+                var savedMsg by remember { mutableStateOf("") }
+
+                LaunchedEffect(Unit) {
+                    val cfg = EngineSettings.load(context)
+                    apiKey = cfg.apiKey
+                    baseUrl = cfg.baseUrl
+                    modelId = cfg.modelId
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "自定义 API 接入（OpenAI 兼容）",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    OutlinedTextField(
+                        value = baseUrl,
+                        onValueChange = { baseUrl = it },
+                        label = { Text("Base URL") },
+                        placeholder = { Text("https://api.example.com/v1") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text("API Key") },
+                        placeholder = { Text("sk-...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = modelId,
+                        onValueChange = { modelId = it },
+                        label = { Text("模型 ID") },
+                        placeholder = { Text("例如 deepseek-chat / gpt-4o") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(onClick = {
+                            scope.launch {
+                                EngineSettings.save(
+                                    context,
+                                    EngineSettings.EngineConfig(
+                                        apiKey = apiKey,
+                                        baseUrl = baseUrl,
+                                        modelId = modelId
+                                    )
+                                )
+                                savedMsg = "已保存，重启引擎后生效"
+                            }
+                        }) {
+                            Text("保存")
+                        }
+                        if (savedMsg.isNotEmpty()) {
+                            Text(
+                                savedMsg,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Text(
+                        "留空则使用 DeepSeek 官方接入。修改后需停止并重新启动引擎。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
+            // 引擎 Web 控制台（dsh 原生 UI：模型设置 / 插件市场 / 会话）
+            item {
+                SettingsRow(
+                    icon = Icons.Default.Language,
+                    title = "引擎控制台 (Web UI)",
+                    subtitle = "完整 dsh 功能界面",
+                    onClick = {
+                        context.startActivity(Intent(context, EngineWebActivity::class.java))
+                    }
                 )
             }
 
