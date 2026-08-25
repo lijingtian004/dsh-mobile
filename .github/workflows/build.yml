@@ -133,10 +133,100 @@ jobs:
           export LD_LIBRARY_PATH="$DIR/lib:$LD_LIBRARY_PATH"
           export HOME="$DIR/home"
           export TMPDIR="$HOME/tmp"
+          export OPENSSL_CONF=/dev/null
           mkdir -p "$HOME/tmp"
           exec "$DIR/node" "$DIR/bundle/node_modules/@deepseek-ai/dsh/lib/bin.js" "$@"
           EOS
           chmod +x app/src/main/assets/engine/dsh
+
+      - name: Patch engine native deps for Android
+        run: |
+          set -e
+          NM=app/src/main/assets/engine/bundle/node_modules
+
+          # tolerant proxy stub: any property access/call returns another stub
+          write_tolerant_cjs() { cat > "$1" <<'EOF'
+          const fn = function stub(){};
+          const anything = new Proxy(fn, {
+            get(t,p){
+              if (p === Symbol.toPrimitive) return function(hint){ return "stub"; };
+              if (typeof p === "symbol") return undefined;
+              if (p === "then" || p === "__esModule") return undefined;
+              return anything;
+            },
+            apply(){ return anything; },
+            construct(){ return anything; }
+          });
+          module.exports = anything;
+          EOF
+          }
+          write_tolerant_mjs() { cat > "$1" <<'EOF'
+          const fn = function stub(){};
+          const anything = new Proxy(fn, {
+            get(t,p){
+              if (p === Symbol.toPrimitive) return function(hint){ return "stub"; };
+              if (typeof p === "symbol") return undefined;
+              if (p === "then" || p === "__esModule") return undefined;
+              return anything;
+            },
+            apply(){ return anything; },
+            construct(){ return anything; }
+          });
+          export default anything;
+          export const proto = anything;
+          export const load = anything;
+          EOF
+          }
+
+          # koffi (FFI, no Android build): stub it out
+          mkdir -p "$NM/koffi"
+          printf '%s\n' '{"name":"koffi","version":"3.1.6","main":"stub.cjs","exports":{".":{"require":"./stub.cjs","import":"./stub.mjs"}}}' > "$NM/koffi/package.json"
+          write_tolerant_cjs "$NM/koffi/stub.cjs"
+          write_tolerant_mjs "$NM/koffi/stub.mjs"
+
+          # node-pty (no android-arm64 prebuild): stub it out
+          mkdir -p "$NM/node-pty"
+          printf '%s\n' '{"name":"node-pty","version":"1.0.0","main":"stub.cjs","exports":{".":{"require":"./stub.cjs","import":"./stub.mjs"}}}' > "$NM/node-pty/package.json"
+          write_tolerant_cjs "$NM/node-pty/stub.cjs"
+          write_tolerant_mjs "$NM/node-pty/stub.mjs"
+
+          # minimal cordis plugin class stub
+          write_class_stub() { cat > "$1" <<'EOF'
+          export default class DshPluginStub {
+            static inject = []
+            static provide = 'sandbox'
+            async start() {}
+            stop() {}
+          }
+          EOF
+          }
+
+          for P in dsh-sandbox-local dsh-bash-sandbox dsh-permission-presets; do
+            DIR="$NM/@deepseek-ai/$P"
+            mkdir -p "$DIR"
+            printf '%s\n' "{\"name\":\"@deepseek-ai/$P\",\"version\":\"0.1.1-rc.2\",\"type\":\"module\",\"main\":\"stub.mjs\",\"exports\":{\".\":{\"require\":\"./stub.mjs\",\"import\":\"./stub.mjs\",\"default\":\"./stub.mjs\"}}}" > "$DIR/package.json"
+            write_class_stub "$DIR/stub.mjs"
+          done
+
+          # cordis HMR plugin requires --expose-internals: provide a service-compatible stub
+          cat > "$NM/@deepseek-ai/cordis-plugin-hmr/stub.mjs" <<'EOF'
+          import { Service } from "@deepseek-ai/cordis";
+          export default class CordisHmrStub extends Service {
+            static inject = []
+            callbacks = new Map()
+            constructor(ctx, config) {
+              super(ctx, "hmr");
+              this.config = config;
+            }
+            registerConfig(filename, compose) {
+              this.callbacks.set(filename, compose)
+              return Promise.resolve(async () => {})
+            }
+            async start() {}
+            stop() {}
+          }
+          EOF
+          echo "engine patches applied"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
