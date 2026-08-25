@@ -16,6 +16,17 @@ class DshEngineManager(private val context: Context) {
         private const val PORT = 3080
         private const val HOST = "127.0.0.1"
 
+        @Volatile
+        private var appContext: Context? = null
+
+        val instance: DshEngineManager by lazy {
+            DshEngineManager(appContext!!)
+        }
+
+        fun init(context: Context) {
+            appContext = context.applicationContext
+        }
+
         /** 引擎工作目录 */
         fun engineDir(context: Context): File = File(context.filesDir, "dsh_engine")
 

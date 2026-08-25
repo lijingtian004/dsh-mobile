@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.deepseek.dshmobile.service.DshEngineManager
 import com.deepseek.dshmobile.service.DshEngineService
 import com.deepseek.dshmobile.ui.EngineWebActivity
+import com.deepseek.dshmobile.util.EngineConfig
 import com.deepseek.dshmobile.util.EngineSettings
 import kotlinx.coroutines.launch
 
@@ -133,7 +134,7 @@ fun SettingsScreen(
                             scope.launch {
                                 EngineSettings.save(
                                     context,
-                                    EngineSettings.EngineConfig(
+                                    EngineConfig(
                                         apiKey = apiKey,
                                         baseUrl = baseUrl,
                                         modelId = modelId
