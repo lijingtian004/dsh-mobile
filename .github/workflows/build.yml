@@ -25,7 +25,8 @@ jobs:
 
       - name: Prepare engine assets
         run: |
-          set -e
+          set -ex
+          PS4="+ ${BASH_SOURCE}:${LINENO}: "
           mkdir -p app/src/main/assets/engine
 
           # 1) Native Android ARM64 Node.js from the official Termux repo
@@ -47,7 +48,7 @@ jobs:
               }' /tmp/Packages | tail -n1)
             [ -z "$STANZA" ] && { echo "skip unknown package: $p"; continue; }
             FN=$(echo "$STANZA" | grep -m1 '^Filename:' | cut -d' ' -f2)
-            DEPS=$(echo "$STANZA" | grep -m1 '^Depends:' | sed 's/^Depends: //' | tr ',' '\n' | sed 's/([^)]*)//g' | awk '{print $1}' | sed 's/:.*$//' | grep -v '^$')
+            DEPS=$(echo "$STANZA" | grep -m1 '^Depends:' | sed 's/^Depends: //' | tr ',' '\n' | sed 's/([^)]*)//g' | awk '{print $1}' | sed 's/:.*$//' | grep -v '^$' || true)
             for d in $DEPS; do [ -z "${DONE[$d]}" ] && queue+=("$d"); done
             echo "downloading: $FN"
             curl -sL --retry 3 -o "pkg.deb" "https://packages.termux.dev/apt/termux-main/$FN"
