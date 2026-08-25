@@ -45,8 +45,8 @@ class DshEngineService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
+                startForeground(NOTIFICATION_ID, buildNotification("正在启动引擎..."))
                 startEngine()
-                startForeground(NOTIFICATION_ID, buildNotification("启动中..."))
             }
             ACTION_STOP -> {
                 stopEngine()
@@ -62,14 +62,15 @@ class DshEngineService : Service() {
 
     private fun startEngine() {
         serviceScope.launch {
-            try {
-                val success = DshEngineManager.instance.initialize(this@DshEngineService)
-                if (success) {
-                    updateNotification("引擎已启动", true)
-                    sendStatusBroadcast()
-                } else {
-                    updateNotification("启动失败", false)
+            // 通知栏实时展示引擎状态变化（解压/启动/就绪）
+            launch {
+                DshEngineManager.status.collect { text ->
+                    updateNotification(text, DshEngineManager.isRunning)
                 }
+            }
+            try {
+                DshEngineManager.instance.initialize(this@DshEngineService)
+                sendStatusBroadcast()
             } catch (e: Exception) {
                 Log.e(TAG, "Engine start failed", e)
                 updateNotification("启动异常: ${e.message}", false)
