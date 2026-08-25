@@ -7,6 +7,7 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 class DshEngineManager(private val context: Context) {
@@ -38,6 +39,9 @@ class DshEngineManager(private val context: Context) {
 
         var isPreparing: Boolean = false
             private set
+
+        /** 引擎当前状态描述（用于通知栏与设置页展示） */
+        val status = MutableStateFlow("引擎未启动")
     }
 
     private var process: Process? = null
@@ -66,14 +70,17 @@ class DshEngineManager(private val context: Context) {
         // 首次运行：从 assets 解压引擎资源
         if (!nodeBin.exists() || !bundleJs.exists()) {
             Log.i(TAG, "Engine binaries not found, extracting from assets...")
+            status.value = "首次启动：正在解压引擎资源（约 300MB，需要几分钟）..."
             if (!extractFromAssets(appDir)) {
                 Log.e(TAG, "Failed to extract engine binaries")
+                status.value = "引擎资源解压失败"
                 return false
             }
         }
         // 解压完成后再次确认
         if (!nodeBin.exists() || !bundleJs.exists()) {
             Log.e(TAG, "Engine binaries still missing after extraction")
+            status.value = "引擎资源不完整"
             return false
         }
 
@@ -98,6 +105,8 @@ class DshEngineManager(private val context: Context) {
             env["DSH_HOME"] = home.absolutePath
             env["LD_LIBRARY_PATH"] =
                 File(appDir, "lib").absolutePath + ":" + (env["LD_LIBRARY_PATH"] ?: "")
+            // Termux 编译的 OpenSSL 会尝试读取其前缀下的 openssl.cnf（无权限），禁用之
+            env["OPENSSL_CONF"] = "/dev/null"
 
             // 注入用户自定义 API Key（配合 settings.yaml 的 apiKeyEnv）
             val cfg = EngineSettings.load(context)
@@ -105,12 +114,19 @@ class DshEngineManager(private val context: Context) {
                 env["CUSTOM_API_KEY"] = cfg.apiKey
             }
 
+            status.value = "正在启动引擎进程..."
             process = pb.start()
             Log.i(TAG, "Engine process started")
 
-            waitForReady()
+            status.value = "正在等待引擎就绪..."
+            val ok = waitForReady()
+            if (!ok) {
+                status.value = "引擎启动超时，请查看日志"
+            }
+            ok
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start engine", e)
+            status.value = "启动失败：${e.message}"
             false
         }
     }
@@ -198,6 +214,7 @@ class DshEngineManager(private val context: Context) {
                 conn.connectTimeout = 800
                 if (conn.responseCode in 200..399) {
                     Log.i(TAG, "Engine service is ready")
+                    status.value = "引擎已运行 (127.0.0.1:3080)"
                     isRunning = true
                     return true
                 }
@@ -221,6 +238,7 @@ class DshEngineManager(private val context: Context) {
         }
         process = null
         isRunning = false
+        status.value = "引擎未启动"
     }
 
     /**
